@@ -8,6 +8,9 @@
 // ==== Definicion de constantes y variables globales ===============
 int    patt_id;            // Identificador unico de la marca
 double patt_trans[3][4];   // Matriz de transformacion de la marca
+int flag = 0; //Cambia entre el cubo y la esfera
+double distancia; //Distancia entre los objetos
+float tamF = 80.0; //Tamaño de los objetos
 
 //void print_error (char *error) {  printf(error); exit(0); }
 
@@ -55,15 +58,15 @@ static void cleanup(void) {
 // ======== draw ====================================================
 static void draw( void ) {
   double  gl_para[16];   // Esta matriz 4x4 es la usada por OpenGL
-  GLfloat colorCubo[] = {0.0, 0.0, 0.0, 1.0};
-  GLfloat colorEsfera[] = {0.0, 0.0, 0.0, 1.0};
+  GLfloat colorCubo[] = {1.0, 1.0, 0.0, 1.0};
+  GLfloat colorEsfera[] = {1.0, 1.0, 0.0, 1.0};
   GLfloat light_position[]  = {100.0,-200.0,200.0,0.0};
   double m[3][4], m2[3][4];
   int i;
-  int flag = 0; //Cambia entre el cubo y la esfera
-  int vis = 0; //Se ha hecho oclusion a la camara
+  int vis = 1; //Se ha hecho oclusion a la camara
   float angle=0.0, module=0.0;
   double v[3];
+  float tam = 0.0; //Tamaño que va a tener el objeto
   
   argDrawMode3D();              // Cambiamos el contexto a 3D
   argDraw3dCamera(0, 0);        // Y la vista de la camara a 3D
@@ -91,37 +94,25 @@ static void draw( void ) {
       	flag = 1;
       if(angle >= 90 && angle < 180)//cubo = pueblo 2
       	flag = 0;
-      	
-      vis = 1;
+
+      arUtilMatInv(objects[0].patt_trans, m);
+      arUtilMatMul(m, objects[1].patt_trans, m2);
+      distancia = sqrt(pow(m2[0][3],2)+pow(m2[1][3],2)+pow(m2[2][3],2));
+      tam = (320 - distancia) / 160.0;
+      tamF = tam * 150;
+      printf ("Distancia objects[0] y objects[1]= %G\n", tamF);
       	
     }else if (objects[1].visible == 0){
-    
-      //Cambia el color según el ángulo de la marca pequeña
-    	if(vis == 1){//verde
-			colorCubo[0] = 0.0;
-			colorCubo[1] = 1.0;
-			colorCubo[2] = 0.0;
-			colorCubo[3] = 0.0;
-      }
-      if(vis == 2){//amarillo
-      	colorCubo[0] = 1.0;
-      	colorCubo[1] = 1.0;
-      	colorCubo[2] = 0.0;
-      	colorCubo[3] = 0.0;
-      }
-      if(vis == 3){//rojo
-      	colorCubo[0] = 1.0;
-      	colorCubo[1] = 0.0;
-      	colorCubo[2] = 0.0;
-      	colorCubo[3] = 0.0;
-      }
-      if(vis == 5){//morado
-      	colorCubo[0] = 1.0;
-      	colorCubo[1] = 0.0;
-      	colorCubo[2] = 1.0;
-      	colorCubo[3] = 0.0;
-      }  
-    
+      //Cambia el color si la marca pequeña tiene oclusión
+      colorCubo[0] = 1.0;
+      colorCubo[1] = 0.0;
+      colorCubo[2] = 1.0;
+      colorCubo[3] = 0.0;
+
+      colorEsfera[0] = 1.0;
+      colorEsfera[1] = 0.0;
+      colorEsfera[2] = 1.0;
+      colorEsfera[3] = 0.0;
     }
 
     glEnable(GL_LIGHTING);  glEnable(GL_LIGHT0);
@@ -132,10 +123,10 @@ static void draw( void ) {
     glRotatef(90.0, 1.0, 0.0, 0.0);
     if(flag == 1){
 		 glMaterialfv(GL_FRONT, GL_AMBIENT, colorEsfera);
-		 glutSolidSphere(65.0, 50.0, 50.0);
+		 glutSolidSphere(tamF, 50.0, 50.0);
     }else{
 		 glMaterialfv(GL_FRONT, GL_AMBIENT, colorCubo);
-		 glutSolidCube(100.0);
+		 glutSolidCube(tamF);
 		 
 	 }
   }
@@ -149,7 +140,7 @@ static void init( void ) {
   double c[2] = {0.0, 0.0};  // Centro de patron (por defecto)
   
   // Abrimos dispositivo de video
-  if(arVideoOpen("-dev=/dev/video1") < 0) exit(0);  
+  if(arVideoOpen("-dev=/dev/video0") < 0) exit(0);  
   if(arVideoInqSize(&xsize, &ysize) < 0) exit(0);
 
   // Cargamos los parametros intrinsecos de la camara
@@ -160,17 +151,19 @@ static void init( void ) {
   arInitCparam(&cparam);   // Inicializamos la camara con "cparam"
 
   // Inicializamos la lista de objetos
-  addObject("data/identic.patt", 120.0, c, NULL); 
-  addObject("data/simple.patt", 90.0, c, NULL); 
+  addObject("data/simple.patt", 120.0, c, NULL); 
+  addObject("data/identic.patt", 90.0, c, NULL); 
 
 
   argInit(&cparam, 1.0, 0, 0, 0, 0);   // Abrimos la ventana 
 }
+
 // ======== mainLoop ================================================
 static void mainLoop(void) {
   ARUint8 *dataPtr;
   ARMarkerInfo *marker_info;
   int marker_num, i, j, k;
+  int vis = 0;
 
   // Capturamos un frame de la camara de video
   if((dataPtr = (ARUint8 *)arVideoGetImage()) == NULL) {
@@ -192,15 +185,32 @@ static void mainLoop(void) {
   for (i=0; i<nobjects; i++) {
     for(j = 0, k = -1; j < marker_num; j++) {
       if(objects[i].id == marker_info[j].id) {
-	if (k == -1) k = j;
-	else if(marker_info[k].cf < marker_info[j].cf) k = j;
+	      if (k == -1){
+          k = j;
+          vis++;
+        }else if(marker_info[k].cf < marker_info[j].cf){
+          k = j;
+          vis++;
+        }
       }
     }
     
     if(k != -1) {   // Si ha detectado el patron en algun sitio...
-      objects[i].visible = 1;
       arGetTransMat(&marker_info[k], objects[i].center, 
 		    objects[i].width, objects[i].patt_trans);
+      if(vis == 1 && i == 0){
+        objects[0].visible = 1;
+        objects[1].visible = 0;
+
+      }else if(vis == 1 && i == 0){
+        objects[0].visible = 0;
+        objects[1].visible = 1;
+
+      }else if(vis == 2){
+        objects[0].visible = 1;
+        objects[1].visible = 1;
+      }
+
     } else { objects[i].visible = 0; }  // El objeto no es visible
   }
  
