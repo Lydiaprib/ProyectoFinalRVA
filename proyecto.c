@@ -19,14 +19,13 @@ struct TObject{
   int id;                      // Identificador del patron
   int visible;                 // Es visible el objeto?
   double width;                // Ancho del patron
-  double center[2];            // Centro del patron  
+  double center[2];            // Centro del patron
   double patt_trans[3][4];     // Matriz asociada al patron
   void (* drawme)(void);       // Puntero a funcion drawme
 };
 
 struct TObject *objects = NULL;
 int nobjects = 0;
-double dist01;                 // Distancia entre el objeto 0 y 1
 
 void print_error (char *error) {  printf("%s\n",error); exit(0); }
 
@@ -58,11 +57,10 @@ static void cleanup(void) {
 // ======== draw ====================================================
 static void draw( void ) {
   double  gl_para[16];   // Esta matriz 4x4 es la usada por OpenGL
-  GLfloat colorCubo[] = {1.0, 1.0, 0.0, 1.0};
-  GLfloat colorEsfera[] = {1.0, 1.0, 0.0, 1.0};
+  GLfloat color[] = {1.0, 1.0, 0.0, 1.0};
   GLfloat light_position[]  = {100.0,-200.0,200.0,0.0};
   double m[3][4], m2[3][4];
-  int i;
+  int i, wire = 0;
   int vis = 1; //Se ha hecho oclusion a la camara
   float angle=0.0, module=0.0;
   double v[3];
@@ -90,45 +88,46 @@ static void draw( void ) {
       angle = acos (v[0]) * 57.2958;   // Sexagesimales! * (180/PI)
       
       //Define qué pueblo se ve en función del ángulo de la marca pequeña
-      if(angle >= 0 && angle < 90)//esfera = pueblo 1
+      if(angle >= 0 && angle < 90)//Se pinta un cono
       	flag = 1;
-      if(angle >= 90 && angle < 180)//cubo = pueblo 2
+      if(angle >= 90 && angle < 180)//Se pinta un toro
       	flag = 0;
 
       arUtilMatInv(objects[0].patt_trans, m);
       arUtilMatMul(m, objects[1].patt_trans, m2);
       distancia = sqrt(pow(m2[0][3],2)+pow(m2[1][3],2)+pow(m2[2][3],2));
       tam = (320 - distancia) / 160.0;
-      tamF = tam * 150;
-      printf ("Distancia objects[0] y objects[1]= %G\n", tamF);
+      if(tam < 0)
+        tamF = 0;
+      else
+        tamF = tam * 150;
+      printf ("Distancia entre las marcas = %G\n", tamF);
       	
     }else if (objects[1].visible == 0){
       //Cambia el color si la marca pequeña tiene oclusión
-      colorCubo[0] = 1.0;
-      colorCubo[1] = 0.0;
-      colorCubo[2] = 1.0;
-      colorCubo[3] = 0.0;
-
-      colorEsfera[0] = 1.0;
-      colorEsfera[1] = 0.0;
-      colorEsfera[2] = 1.0;
-      colorEsfera[3] = 0.0;
+      color[0] = 1.0;
+      color[1] = 0.0;
+      color[2] = 1.0;
+      color[3] = 0.0;
+      wire = 1;
     }
 
     glEnable(GL_LIGHTING);  glEnable(GL_LIGHT0);
     glLightfv(GL_LIGHT0, GL_POSITION, light_position);
  
-    //glMaterialfv(GL_FRONT, GL_AMBIENT, colorGeneral);
-    glTranslatef(0.0, 0.0, 60.0);
-    glRotatef(90.0, 1.0, 0.0, 0.0);
     if(flag == 1){
-		 glMaterialfv(GL_FRONT, GL_AMBIENT, colorEsfera);
-		 glutSolidSphere(tamF, 50.0, 50.0);
+		  glMaterialfv(GL_FRONT, GL_AMBIENT, color);
+      if(wire == 1)
+        glutWireCone(tamF, tamF*1.5, 200.0, 200.0);
+      else
+		    glutSolidCone(tamF, tamF*1.5, 200.0, 200.0);
     }else{
-		 glMaterialfv(GL_FRONT, GL_AMBIENT, colorCubo);
-		 glutSolidCube(tamF);
-		 
-	 }
+		  glMaterialfv(GL_FRONT, GL_AMBIENT, color);
+      if(wire == 1)
+        glutWireTorus(tamF/3, tamF/1.5, 200, 200);
+      else
+		    glutSolidTorus(tamF/3, tamF/1.5, 200, 200);
+	  }
   }
   glDisable(GL_DEPTH_TEST);
 }
@@ -140,7 +139,7 @@ static void init( void ) {
   double c[2] = {0.0, 0.0};  // Centro de patron (por defecto)
   
   // Abrimos dispositivo de video
-  if(arVideoOpen("-dev=/dev/video0") < 0) exit(0);  
+  if(arVideoOpen("-dev=/dev/video1") < 0) exit(0);  
   if(arVideoInqSize(&xsize, &ysize) < 0) exit(0);
 
   // Cargamos los parametros intrinsecos de la camara
