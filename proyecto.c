@@ -1,3 +1,15 @@
+############################################################################################
+############################################################################################
+###                                                                                      ###
+###    Codigo extraído originalmente de http://www.librorealidadaumentada.com/           ###
+###                                                                                      ###
+###    Modificado por LYDIA PRADO IBAÑEZ para la entrega practica de la asignatura       ###
+###    RVRA del Master en Ingeneria Informatica de la Escuela Superior de Informatica    ###
+###    de Ciudad Real (UCLM)                                                             ###
+###                                                                                      ###
+############################################################################################
+############################################################################################
+
 #include <math.h>
 #include <GL/glut.h>    
 #include <AR/gsub.h>    
@@ -8,11 +20,9 @@
 // ==== Definicion de constantes y variables globales ===============
 int    patt_id;            // Identificador unico de la marca
 double patt_trans[3][4];   // Matriz de transformacion de la marca
-int flag = 0; //Cambia entre el cubo y la esfera
-double distancia; //Distancia entre los objetos
-float tamF = 80.0; //Tamaño de los objetos
-
-//void print_error (char *error) {  printf(error); exit(0); }
+int flag = 0; //Cambia entre el cubo y el toro
+double distancia; //Distancia entre las marcas
+float tamF = 80.0; //Variable que guarda el tamaño final de los objetos
 
 // ==== Definicion de estructuras ===================================
 struct TObject{
@@ -57,14 +67,13 @@ static void cleanup(void) {
 // ======== draw ====================================================
 static void draw( void ) {
   double  gl_para[16];   // Esta matriz 4x4 es la usada por OpenGL
-  GLfloat color[] = {1.0, 1.0, 0.0, 1.0};
-  GLfloat light_position[]  = {100.0,-200.0,200.0,0.0};
+  GLfloat color[] = {1.0, 1.0, 0.0, 1.0}; // Color inicial de las figuras
+  GLfloat light_position[]  = {100.0,-200.0,200.0,0.0}; // Iluminacion de las figuras
   double m[3][4], m2[3][4];
-  int i, wire = 0;
-  int vis = 1; //Se ha hecho oclusion a la camara
+  int i, wire = 0; // wire indica si la figura se tiene que dibujar solida o con cables
   float angle=0.0, module=0.0;
   double v[3];
-  float tam = 0.0; //Tamaño que va a tener el objeto
+  float tam = 0.0; //Tamaño local al método que tiene el objeto
   
   argDrawMode3D();              // Cambiamos el contexto a 3D
   argDraw3dCamera(0, 0);        // Y la vista de la camara a 3D
@@ -78,16 +87,16 @@ static void draw( void ) {
     glLoadMatrixd(gl_para);   // Cargamos su matriz de transf.            
 
     if (objects[1].visible == 1) {
-       // Calculamos el angulo de rotacion de la segunda marca
+      // Calculamos el angulo de rotacion de la segunda marca
       v[0] = objects[1].patt_trans[0][0]; 
       v[1] = objects[1].patt_trans[1][0]; 
       v[2] = objects[1].patt_trans[2][0]; 
       
       module = sqrt(pow(v[0],2)+pow(v[1],2)+pow(v[2],2));
       v[0] = v[0]/module;  v[1] = v[1]/module; v[2] = v[2]/module; 
-      angle = acos (v[0]) * 57.2958;   // Sexagesimales! * (180/PI)
+      angle = acos (v[0]) * 57.2958;   // Se obtiene un ángulo de entre 0º y 180º
       
-      //Define qué pueblo se ve en función del ángulo de la marca pequeña
+      //Define qué figura se muestra en función del ángulo de la marca pequeña
       if(angle >= 0 && angle < 90)//Se pinta un cono
       	flag = 1;
       if(angle >= 90 && angle < 180)//Se pinta un toro
@@ -95,16 +104,19 @@ static void draw( void ) {
 
       arUtilMatInv(objects[0].patt_trans, m);
       arUtilMatMul(m, objects[1].patt_trans, m2);
+	  //Se calcula la distancia que existe entre las dos marcas
       distancia = sqrt(pow(m2[0][3],2)+pow(m2[1][3],2)+pow(m2[2][3],2));
       tam = (320 - distancia) / 160.0;
-      if(tam < 0)
+	  // Para evitar que al alejar demasiado las marcas, la distancia de un número negativo
+	  // y las figuras se muestren dadas la vuelta
+      if(tam < 0) // El tamaño de las figuras nunca va a ser inferior a 0
         tamF = 0;
-      else
+      else // Se escala la figura un 150% del tamaño obtenido con la fórmula de la distancia
         tamF = tam * 150;
       printf ("Distancia entre las marcas = %G\n", tamF);
       	
     }else if (objects[1].visible == 0){
-      //Cambia el color si la marca pequeña tiene oclusión
+      // Cambia el color de las figuras a violeta si la marca pequeña tiene oclusión
       color[0] = 1.0;
       color[1] = 0.0;
       color[2] = 1.0;
@@ -115,18 +127,20 @@ static void draw( void ) {
     glEnable(GL_LIGHTING);  glEnable(GL_LIGHT0);
     glLightfv(GL_LIGHT0, GL_POSITION, light_position);
  
+	// Si la marca pequeña tiene una rotación de entre 0º y 90º, se dibuja un cono
     if(flag == 1){
-		  glMaterialfv(GL_FRONT, GL_AMBIENT, color);
-      if(wire == 1)
-        glutWireCone(tamF, tamF*1.5, 200.0, 200.0);
-      else
-		    glutSolidCone(tamF, tamF*1.5, 200.0, 200.0);
+	  glMaterialfv(GL_FRONT, GL_AMBIENT, color);
+      if(wire == 1) // Si detecta oclusión, el cono se dibuja con cables
+        glutWireCone(tamF, tamF*1.5, 150, 150);
+      else // Si no decta oclusión, el cono se dibuja sólido
+		glutSolidCone(tamF, tamF*1.5, 150, 150);
+	// Si la marca pequeña tiene una rotación de entre 90º y 180ª, se dibuja un toro
     }else{
-		  glMaterialfv(GL_FRONT, GL_AMBIENT, color);
-      if(wire == 1)
-        glutWireTorus(tamF/3, tamF/1.5, 200, 200);
-      else
-		    glutSolidTorus(tamF/3, tamF/1.5, 200, 200);
+	  glMaterialfv(GL_FRONT, GL_AMBIENT, color);
+      if(wire == 1) // Si detecta oclusión, el toro se dibuja con cables
+        glutWireTorus(tamF/3, tamF/1.5, 150, 150);
+      else // Si no decta oclusión, el toro se dibuja sólido
+		glutSolidTorus(tamF/3, tamF/1.5, 150, 150);
 	  }
   }
   glDisable(GL_DEPTH_TEST);
@@ -162,7 +176,7 @@ static void mainLoop(void) {
   ARUint8 *dataPtr;
   ARMarkerInfo *marker_info;
   int marker_num, i, j, k;
-  int vis = 0;
+  int vis = 0; // Controla el numero de marcas que detecta visibles
 
   // Capturamos un frame de la camara de video
   if((dataPtr = (ARUint8 *)arVideoGetImage()) == NULL) {
@@ -184,8 +198,8 @@ static void mainLoop(void) {
   for (i=0; i<nobjects; i++) {
     for(j = 0, k = -1; j < marker_num; j++) {
       if(objects[i].id == marker_info[j].id) {
-	      if (k == -1){
-          k = j;
+	    if (k == -1){
+		  k = j;
           vis++;
         }else if(marker_info[k].cf < marker_info[j].cf){
           k = j;
@@ -193,19 +207,18 @@ static void mainLoop(void) {
         }
       }
     }
-    
-    if(k != -1) {   // Si ha detectado el patron en algun sitio...
-      arGetTransMat(&marker_info[k], objects[i].center, 
-		    objects[i].width, objects[i].patt_trans);
-      if(vis == 1 && i == 0){
+    // Establece si la marca es o no visible
+    if(k != -1) {
+      arGetTransMat(&marker_info[k], objects[i].center, objects[i].width, objects[i].patt_trans);
+      if(vis == 1 && i == 0){ // Si solo ha detectado una marca y es la primera iteracion, se hace visible la primera marca
         objects[0].visible = 1;
         objects[1].visible = 0;
 
-      }else if(vis == 1 && i == 0){
+      }else if(vis == 1 && i == 1){ // Si solo ha detectado una marca y es la segunda iteracion, se hace visible la segunda marca
         objects[0].visible = 0;
         objects[1].visible = 1;
 
-      }else if(vis == 2){
+      }else if(vis == 2){ // Si detecta las dos marcas, se hacen visibles las dos marcas
         objects[0].visible = 1;
         objects[1].visible = 1;
       }
